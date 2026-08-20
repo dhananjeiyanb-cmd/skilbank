@@ -239,6 +239,10 @@
     "/mentorMappings/{mentorDocId}": {
       "schema": { "$ref": "#/entities/MentorMenteeMapping" },
       "description": "Collection of mentor → mentee allocation mappings"
+    },
+    "/departmentRankings/{deptDocId}": {
+      "schema": {},
+      "description": "Persisted Department-wise Ranking snapshot (SSB Grade Coin) computed on the Principal SSB dashboard and stored via syncAllDataToFirestore"
     }
   }
 }

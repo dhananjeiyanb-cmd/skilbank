@@ -44,6 +44,7 @@ import { INITIAL_STUDENTS_SKILL_BANK } from '../data/mockSkillBank';
 import { getGoogleAvatarUrl } from '../utils/avatarUtils';
 import { isSameDept, getDeptTag, buildMentorMappingsFromStudents, sanitizeDepartmentName } from '../utils/departmentUtils';
 import { normalizeStudentSkillBankRecord } from '../utils/excelSkillBank';
+import { computeDepartmentSsb, DEPARTMENT_RANKING_OPTIONS, getDepartmentRankingId, DepartmentSsbtotals } from '../utils/principalSsbutil';
 import { hashPassword, verifyPassword } from '../utils/passwordUtils';
 
 const getStudentDocId = (st: StudentSkillBankData): string => {
@@ -3269,6 +3270,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (docId) syncDocToFirestore('skillBankStudents', docId, st);
     });
     syncDocToFirestore('settings', 'dailyReport', dailyReport);
+    // Persist the Department-wise Ranking (SSB Grade Coin) so the Principal
+    // dashboard ranking is stored in the database, not only computed on-screen.
+    try {
+      const deptRankings: DepartmentSsbtotals[] = computeDepartmentSsb(
+        skillBankStudents,
+        Array.from(DEPARTMENT_RANKING_OPTIONS)
+      );
+      const rankSnapshot = {
+        generatedAt: new Date().toISOString(),
+        source: 'principal_ssb_dashboard',
+        rankings: deptRankings,
+      };
+      syncDocToFirestore('departmentRankings', 'latest', rankSnapshot);
+      deptRankings.forEach((row) => {
+        const deptId = getDepartmentRankingId(row.department);
+        if (deptId) syncDocToFirestore('departmentRankings', deptId, row);
+      });
+    } catch (err) {
+      console.error('Failed to persist department rankings:', err);
+    }
     notifications.forEach((n) => syncDocToFirestore('notifications', n.id, n));
     eventsList.forEach((ev) => syncDocToFirestore('events', ev.id, ev));
     ccmMeetings.forEach((m) => syncDocToFirestore('ccmMeetings', m.id, m));

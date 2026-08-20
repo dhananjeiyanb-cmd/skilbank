@@ -66,6 +66,10 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    match /departmentRankings/{docId} {
+      allow read, write: if true;
+    }
+
     match /events/{docId} {
       allow read, write: if true;
     }

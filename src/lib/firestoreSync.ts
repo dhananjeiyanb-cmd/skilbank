@@ -159,7 +159,7 @@ export async function syncDocToFirestore(collectionName: string, docId: string |
 
   // Dual-sync to Supabase if configured
   if (isSupabaseConfigured()) {
-    const supabaseTable = collectionName === 'skillBankStudents' ? 'skill_bank_students' : (collectionName === 'mentorMappings' ? 'mentor_mappings' : collectionName);
+    const supabaseTable = collectionName === 'skillBankStudents' ? 'skill_bank_students' : (collectionName === 'mentorMappings' ? 'mentor_mappings' : (collectionName === 'departmentRankings' ? 'department_rankings' : collectionName));
     void syncDocToSupabase(supabaseTable, cleanId, data);
   }
 
@@ -187,7 +187,7 @@ export async function deleteDocFromFirestore(collectionName: string, docId: stri
 
   // Dual-sync deletion to Supabase if configured
   if (isSupabaseConfigured()) {
-    const supabaseTable = collectionName === 'skillBankStudents' ? 'skill_bank_students' : (collectionName === 'mentorMappings' ? 'mentor_mappings' : collectionName);
+    const supabaseTable = collectionName === 'skillBankStudents' ? 'skill_bank_students' : (collectionName === 'mentorMappings' ? 'mentor_mappings' : (collectionName === 'departmentRankings' ? 'department_rankings' : collectionName));
     void deleteDocFromSupabase(supabaseTable, cleanId);
   }
 

@@ -16,6 +16,32 @@ export interface DepartmentSsbtotals {
   avgCoinsPerStudent: number;
 }
 
+/**
+ * Shared list of departments that appear in the Principal SSB Department-wise
+ * Ranking table. Both the dashboard view and the database sync use this so the
+ * persisted ranking always matches the on-screen ranking.
+ */
+export const DEPARTMENT_RANKING_OPTIONS = [
+  'Cyber Security (CYBER)',
+  'Computer Science & Engineering',
+  'Artificial Intelligence & Data Science (AI & DS)',
+  'Information Technology',
+  'Electrical & Electronics Engineering',
+  'Electronics & Communication Engineering',
+  'Mechanical Engineering',
+  'Civil Engineering',
+  'MBA',
+  'ME-CSE',
+] as const;
+
+/** Stable Firestore / Supabase doc id for a department ranking row. */
+export function getDepartmentRankingId(department: string): string {
+  return String(department || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/(^_+|_+$)/g, '') || 'department';
+}
+
 export function computeDepartmentSsb(
   skillBankStudents: StudentSkillBankData[],
   departments?: string[]

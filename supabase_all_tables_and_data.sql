@@ -67,6 +67,13 @@ CREATE TABLE IF NOT EXISTS faculty_kpis (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS department_rankings (
+  id TEXT PRIMARY KEY,
+  data JSONB NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- 4. Enable Row Level Security (RLS) & Public Policies
 ALTER TABLE skill_bank_students ENABLE ROW LEVEL SECURITY;
 ALTER TABLE mentor_mappings ENABLE ROW LEVEL SECURITY;
@@ -76,6 +83,7 @@ ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE observations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE attendance ENABLE ROW LEVEL SECURITY;
 ALTER TABLE faculty_kpis ENABLE ROW LEVEL SECURITY;
+ALTER TABLE department_rankings ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Public Read/Write skill_bank_students" ON skill_bank_students;
 DROP POLICY IF EXISTS "Public Read/Write mentor_mappings" ON mentor_mappings;
@@ -85,6 +93,7 @@ DROP POLICY IF EXISTS "Public Read/Write tasks" ON tasks;
 DROP POLICY IF EXISTS "Public Read/Write observations" ON observations;
 DROP POLICY IF EXISTS "Public Read/Write attendance" ON attendance;
 DROP POLICY IF EXISTS "Public Read/Write faculty_kpis" ON faculty_kpis;
+DROP POLICY IF EXISTS "Public Read/Write department_rankings" ON department_rankings;
 
 CREATE POLICY "Public Read/Write skill_bank_students" ON skill_bank_students FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Public Read/Write mentor_mappings" ON mentor_mappings FOR ALL USING (true) WITH CHECK (true);
@@ -94,6 +103,7 @@ CREATE POLICY "Public Read/Write tasks" ON tasks FOR ALL USING (true) WITH CHECK
 CREATE POLICY "Public Read/Write observations" ON observations FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Public Read/Write attendance" ON attendance FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Public Read/Write faculty_kpis" ON faculty_kpis FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public Read/Write department_rankings" ON department_rankings FOR ALL USING (true) WITH CHECK (true);
 
 -- 5. Create Performance GIN Indexes on JSONB data columns
 CREATE INDEX IF NOT EXISTS idx_skill_bank_students_data ON skill_bank_students USING gin (data);
@@ -101,6 +111,7 @@ CREATE INDEX IF NOT EXISTS idx_mentor_mappings_data ON mentor_mappings USING gin
 CREATE INDEX IF NOT EXISTS idx_staff_data ON staff USING gin (data);
 CREATE INDEX IF NOT EXISTS idx_classes_data ON classes USING gin (data);
 CREATE INDEX IF NOT EXISTS idx_tasks_data ON tasks USING gin (data);
+CREATE INDEX IF NOT EXISTS idx_department_rankings_data ON department_rankings USING gin (data);
 
 -- 6. Initial Seed Data Records
 

@@ -11,6 +11,7 @@ const COLLECTIONS_TO_SEED: Record<string, string> = {
   observations: 'observations',
   attendance: 'attendance',
   facultyKpis: 'faculty_kpis',
+  departmentRankings: 'department_rankings',
 };
 
 export async function seedAllFirebaseDataToSupabase(onProgress?: (msg: string) => void): Promise<{

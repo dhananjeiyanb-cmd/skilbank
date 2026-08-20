@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
-import { computeDepartmentSsb, DepartmentSsbtotals } from '../utils/principalSsbutil';
+import { computeDepartmentSsb, DepartmentSsbtotals, DEPARTMENT_RANKING_OPTIONS } from '../utils/principalSsbutil';
 import { calculateStudentTotals } from '../data/mockSkillBank';
 import { isSameDept } from '../utils/departmentUtils';
 import {
@@ -37,19 +37,6 @@ import {
 } from 'recharts';
 
 const CHART_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
-
-const DEPARTMENT_RANKING_OPTIONS = [
-  'Cyber Security (CYBER)',
-  'Computer Science & Engineering',
-  'Artificial Intelligence & Data Science (AI & DS)',
-  'Information Technology',
-  'Electrical & Electronics Engineering',
-  'Electronics & Communication Engineering',
-  'Mechanical Engineering',
-  'Civil Engineering',
-  'MBA',
-  'ME-CSE',
-] as const;
 
 const DIM_LABELS: Record<keyof Pick<DepartmentSsbtotals, 'dim1Total' | 'dim2Total' | 'dim3Total' | 'dim4Total' | 'dim5Total'>, string> = {
   dim1Total: 'DIM 1',
