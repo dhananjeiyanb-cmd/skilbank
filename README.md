@@ -18,3 +18,4 @@ View your app in AI Studio: https://ai.studio/apps/3ed80699-eb26-46fb-9d56-0c5d5
 2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
 3. Run the app:
    `npm run dev`
+# skilbank
