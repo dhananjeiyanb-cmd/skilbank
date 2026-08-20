@@ -1,0 +1,175 @@
+import { doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { db, handleFirestoreError, OperationType } from './firebase';
+import { syncDocToSupabase, deleteDocFromSupabase, isSupabaseConfigured } from './supabase';
+
+/**
+ * Converts JS values into Firestore-safe values.
+ * Firestore cannot store:
+ *  - `undefined`   -> converted to `null` (recursively skipped/cleaned)
+ *  - `NaN`         -> converted to `null`
+ *  - +/- Infinity  -> converted to `null`
+ *  - BigInt        -> converted to a finite number when safe, else `null`
+ * These conversions prevent a single invalid value from silently failing an
+ * entire document write (Firestore rejects the whole write otherwise).
+ */
+function sanitizeForFirestore<T>(data: T): T {
+  return sanitizeValue(data, new Set()) as T;
+}
+
+function sanitizeValue(value: any, seen: Set<object>): any {
+  if (value === undefined) return null;
+  if (value === null) return null;
+  if (typeof value === 'number') {
+    // NaN and Infinity are NOT valid Firestore values.
+    return Number.isFinite(value) ? value : null;
+  }
+  if (typeof value === 'bigint') {
+    const asNumber = Number(value);
+    return Number.isFinite(asNumber) ? asNumber : null;
+  }
+  if (Array.isArray(value)) {
+    const out: any[] = [];
+    for (const item of value) {
+      if (item === undefined) continue;
+      out.push(sanitizeValue(item, seen));
+    }
+    return out;
+  }
+  if (value instanceof Date) {
+    return value; // Firestore timestamps are natively supported
+  }
+  if (typeof value === 'object') {
+    if (seen.has(value)) {
+      // Circular reference — drop it to avoid an infinite loop.
+      return null;
+    }
+    seen.add(value);
+    const cleaned: Record<string, any> = {};
+    for (const key of Object.keys(value)) {
+      const val = value[key];
+      if (val !== undefined) {
+        cleaned[key] = sanitizeValue(val, seen);
+      }
+    }
+    seen.delete(value);
+    return cleaned;
+  }
+  return value;
+}
+
+/**
+ * WHY THIS QUEUE IS DURABLE (and lives in localStorage, not memory):
+ * -------------------------------------------------------------------
+ * The old version used an in-memory `isQuotaExceeded` flag: the FIRST write to
+ * hit the Firestore free-tier daily quota flipped a module-level boolean to
+ * `true` and then EVERY subsequent write silently returned without doing
+ * anything — even after the quota reset later that day. Combined with the
+ * daily free-tier read/write quota being exhausted (writes fail with
+ * `resource-exhausted`), user data was only ever kept in localStorage and
+ * NEVER reached the cloud database.
+ *
+ * Now, failed/queued writes are persisted to localStorage on this device,
+ * deduplicated (latest value per document wins), and retried automatically
+ * with exponential backoff — including after a page refresh. Records reach the
+ * cloud database as soon as Firestore accepts writes again (e.g. after the
+ * daily quota reset at 00:00 US-Pacific / 07:00 UTC).
+ */
+
+const QUEUE_STORAGE_KEY = 'hod_task_system_v3_pending_firestore_ops_v1';
+
+interface PendingOp {
+  kind: 'write' | 'delete';
+  collection: string;
+  docId: string;
+  data?: any;
+}
+
+// Cap the queue to avoid unbounded growth in localStorage.
+const MAX_PENDING_OPS = 1000;
+const MAX_OPS_PER_FLUSH = 100;
+const INITIAL_BACKOFF_MS = 8000;
+const QUOTA_BACKOFF_MS = 60_000; // harder backoff for quota exhaustion
+const MAX_BACKOFF_MS = 15 * 60_000;
+
+let pendingOps: PendingOp[] = [];
+let retryTimer: any = null;
+let flushing = false;
+let backoffMs = INITIAL_BACKOFF_MS;
+let lastErrorCode: string | null = null;
+let lastErrorAt: number | null = null;
+
+/* ------------------------------------------------------------------ */
+/* Persistence                                                         */
+/* ------------------------------------------------------------------ */
+
+function isLocalStorageAvailable(): boolean {
+  try {
+    return typeof window !== 'undefined' && !!window.localStorage;
+  } catch {
+    return false;
+  }
+}
+
+function loadQueue(): PendingOp[] {
+  if (!isLocalStorageAvailable()) return [];
+  try {
+    const saved = window.localStorage.getItem(QUEUE_STORAGE_KEY);
+    if (!saved) return [];
+    const parsed = JSON.parse(saved);
+    if (Array.isArray(parsed)) return parsed as PendingOp[];
+  } catch (err) {
+    console.warn('[firestoreSync] Could not parse stored pending-sync queue:', err);
+  }
+  return [];
+}
+
+function saveQueue(): void {
+  if (!isLocalStorageAvailable()) return;
+  try {
+    window.localStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(pendingOps));
+  } catch (err) {
+    // localStorage is full — drop the oldest ops until it fits.
+    console.warn('[syncDocToFirestore] Local pending queue is full; dropping oldest ops.', err);
+    while (pendingOps.length > 1) {
+      pendingOps.shift();
+      try {
+        window.localStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(pendingOps));
+        break;
+      } catch {
+        /* keep dropping until it fits */
+      }
+    }
+  }
+}
+
+function opKey(collection: string, docId: string): string {
+  return `${collection}/${docId}`;
+}
+
+/**
+ * Insert (or replace) an op. Repeated writes to the same document only keep
+ * the LATEST payload — this keeps the queue small and never writes stale
+ * intermediate values once the cloud database comes back online.
+ *  - a new write replaces an older pending write of the same doc
+ *  - a delete removes any pending write of the same doc
+ */
+function dedupInsert(op: PendingOp): void {
+  const key = opKey(op.collection, op.docId);
+  if (op.kind === 'delete') {
+    pendingOps = pendingOps.filter((p) => opKey(p.collection, p.docId) !== key);
+  } else {
+    const existing = pendingOps.find(
+      (p) => p.kind === 'write' && opKey(p.collection, p.docId) === key
+    );
+    if (existing) {
+      existing.data = op.data;
+      return;
+    }
+  }
+  if (pendingOps.length >= MAX_PENDING_OPS) {
+    pendingOps.shift();
+  }
+  pendingOps.push(op);
+}
+
+// === END PART 1 ===
