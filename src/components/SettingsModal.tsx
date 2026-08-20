@@ -1,8 +1,9 @@
 import React, { useState, useRef } from 'react';
 import { useApp } from '../context/AppContext';
+import { getFirestoreSyncStatus, flushPendingFirestoreSync } from '../lib/firestoreSync';
 import { SASURIE_COLLEGES } from '../types';
 import { getCollegeLogoText } from '../utils/departmentUtils';
-import { X, Building, ShieldCheck, Image as ImageIcon, Save, Check, Upload, Trash2, Camera, Database, Download, RotateCcw } from 'lucide-react';
+import { X, Building, ShieldCheck, Image as ImageIcon, Save, Check, Upload, Trash2, Camera, Database, Download, RotateCcw, CloudOff } from 'lucide-react';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -233,8 +234,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 type="button"
                 onClick={() => {
                   syncAllDataToFirestore();
-                  setDbStatusMsg('All collections updated & saved to Firebase Firestore!');
-                  setTimeout(() => setDbStatusMsg(null), 3500);
+                  flushPendingFirestoreSync();
+                  // Give the async write attempts a moment, then report what
+                  // actually reached the cloud database.
+                  window.setTimeout(() => {
+                    const st = getFirestoreSyncStatus();
+                    if (st.pendingCount > 0) {
+                      setDbStatusMsg(
+                        `${st.pendingCount} change(s) are saved on this device and will reach the cloud database automatically as soon as it accepts writes again (usually after the daily quota reset). Click the Cloud Sync badge in the top bar to retry.`
+                      );
+                    } else {
+                      setDbStatusMsg('All collections updated & saved to Firebase Firestore!');
+                    }
+                    setTimeout(() => setDbStatusMsg(null), 6000);
+                  }, 1500);
                 }}
                 className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors"
               >

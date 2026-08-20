@@ -3302,14 +3302,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // lesson plans, HOD attendance, skill bank, mentor mappings, KPIs, events,
   // CCM meetings, notifications, settings) is present in the database — even if
   // an individual write previously failed or was made while offline.
+  //
+  // IMPORTANT: this full push runs ONLY ONCE per device. The free-tier
+  // Firestore project has a small daily WRITE quota, and re-writing every
+  // collection on every page load (staff list, skill bank, KPIs...) was one of
+  // the main reasons the daily quota ran out and "data stopped saving".
+  // Subsequent page loads rely on the durable pending-sync queue in
+  // firestoreSync.ts, which automatically flushes any local change that
+  // Firestore has not accepted yet.
   const bootFullSyncRanRef = useRef(false);
   useEffect(() => {
     const timer = window.setTimeout(() => {
       if (bootFullSyncRanRef.current) return;
       bootFullSyncRanRef.current = true;
       try {
-        syncAllDataToFirestore();
-        console.log('[Boot Sync] Full dataset pushed to Firebase Firestore.');
+        const doneKey = `${LOCAL_STORAGE_KEY_PREFIX}boot_full_sync_done`;
+        if (localStorage.getItem(doneKey) === 'true') {
+          console.log('[Boot Sync] Skipped full push (already performed on this device). Durable queue will flush pending changes.');
+        } else {
+          syncAllDataToFirestore();
+          localStorage.setItem(doneKey, 'true');
+          console.log('[Boot Sync] Full dataset pushed to Firebase Firestore.');
+        }
       } catch (err) {
         console.warn('[Boot Sync] Full dataset push failed:', err);
       }

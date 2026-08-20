@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
+import { getFirestoreSyncStatus, flushPendingFirestoreSync } from '../lib/firestoreSync';
 import { computeDepartmentSsb, DepartmentSsbtotals, DEPARTMENT_RANKING_OPTIONS } from '../utils/principalSsbutil';
 import { calculateStudentTotals } from '../data/mockSkillBank';
 import { isSameDept } from '../utils/departmentUtils';
@@ -95,6 +96,7 @@ export const PrincipalSsbdashboardView: React.FC = () => {
   const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
   const [dbSyncing, setDbSyncing] = useState(false);
   const [dbSyncedSuccess, setDbSyncedSuccess] = useState(false);
+  const [dbSyncMsg, setDbSyncMsg] = useState<string | null>(null);
 
   const filteredStudents = useMemo(() => {
     return (skillBankStudents || []).filter((s) => {
@@ -188,7 +190,20 @@ export const PrincipalSsbdashboardView: React.FC = () => {
                   setDbSyncing(true);
                   try {
                     syncAllDataToFirestore();
+                    flushPendingFirestoreSync();
                     setDbSyncedSuccess(true);
+                    window.setTimeout(() => {
+                      const st = getFirestoreSyncStatus();
+                      if (st.pendingCount > 0) {
+                        setDbSyncedSuccess(false);
+                        setDbSyncMsg(
+                          `${st.pendingCount} change(s) are saved on this device and are queued for the cloud database (free daily quota may be used up). They upload automatically once the database accepts writes again.`
+                        );
+                      } else {
+                        setDbSyncMsg('All SSB Grade Coin data saved to the database!');
+                      }
+                      setTimeout(() => setDbSyncMsg(null), 6000);
+                    }, 1500);
                     setTimeout(() => setDbSyncedSuccess(false), 3000);
                   } catch (err) {
                     console.error('Failed to sync SSB Grade Coin data to database:', err);
@@ -221,6 +236,11 @@ export const PrincipalSsbdashboardView: React.FC = () => {
               </div>
             </div>
           </div>
+          {dbSyncMsg && (
+            <div className="mt-3 px-3 py-2 rounded-xl text-xs font-semibold border bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800">
+              {dbSyncMsg}
+            </div>
+          )}
         </div>
 
         {/* Filters */}

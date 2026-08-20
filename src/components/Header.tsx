@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { getFirestoreSyncStatus, flushPendingFirestoreSync } from '../lib/firestoreSync';
 import { DEPARTMENTS, SASURIE_COLLEGES } from '../types';
 import { getCollegeLogoText } from '../utils/departmentUtils';
 import { SettingsModal } from './SettingsModal';
@@ -21,6 +22,10 @@ import {
   Settings,
   Image as ImageIcon,
   Upload,
+  RefreshCw,
+  Cloud,
+  CloudOff,
+  CheckCircle2,
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -55,6 +60,28 @@ export const Header: React.FC<HeaderProps> = ({
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showProfilePasswordModal, setShowProfilePasswordModal] = useState(false);
+
+  // Cloud sync indicator: how many local changes are still waiting to reach the
+  // cloud database, and whether Firestore is currently rejecting writes (e.g.
+  // the free-tier daily quota being used up). Polled so it stays live.
+  const [cloudSync, setCloudSync] = useState({ pending: 0, lastErrorCode: null as string | null, lastErrorAt: null as number | null });
+
+  useEffect(() => {
+    const refresh = () => {
+      const st = getFirestoreSyncStatus();
+      setCloudSync({ pending: st.pendingCount, lastErrorCode: st.lastErrorCode, lastErrorAt: st.lastErrorAt });
+    };
+    refresh();
+    const iv = window.setInterval(refresh, 10000);
+    return () => window.clearInterval(iv);
+  }, []);
+
+  const QUOTA_UNSYNCED = cloudSync.pending > 0;
+  const QUOTA_PAUSED =
+    cloudSync.pending === 0 &&
+    cloudSync.lastErrorCode === 'resource-exhausted' &&
+    cloudSync.lastErrorAt !== null &&
+    Date.now() - (cloudSync.lastErrorAt as number) < 24 * 60 * 60 * 1000;
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
@@ -189,6 +216,42 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           )}
 
+{/* Cloud Sync Status Pill */}
+          {(QUOTA_UNSYNCED || QUOTA_PAUSED) && (
+            <button
+              onClick={() => {
+                flushPendingFirestoreSync();
+                const st = getFirestoreSyncStatus();
+                setCloudSync({ pending: st.pendingCount, lastErrorCode: st.lastErrorCode, lastErrorAt: st.lastErrorAt });
+              }}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                QUOTA_UNSYNCED
+                  ? 'bg-amber-50 dark:bg-amber-950/60 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/60'
+                  : 'bg-orange-50 dark:bg-orange-950/60 border-orange-300 dark:border-orange-800 text-orange-700 dark:text-orange-300 hover:bg-orange-100 dark:hover:bg-orange-900/60'
+              }`}
+              title={
+                QUOTA_UNSYNCED
+                  ? `${cloudSync.pending} local change(s) are saved on this device and waiting to reach the cloud database. Click to try saving now. This can happen when the free daily Cloud database quota is used up; the app keeps retrying automatically and will upload as soon as the quota resets (00:00 US-Pacific / 07:00 UTC).`
+                  : 'The Cloud database daily quota is currently used up. Your data is safely stored on this device and will be uploaded automatically as soon as the quota resets. Click to retry now.'
+              }
+            >
+              {QUOTA_UNSYNCED ? (
+                <CloudOff className="w-3.5 h-3.5 shrink-0" />
+              ) : (
+                <RefreshCw className="w-3.5 h-3.5 shrink-0" />
+              )}
+              <span className="hidden md:inline">
+                {QUOTA_UNSYNCED
+                  ? `Cloud sync: ${cloudSync.pending} pending`
+                  : 'Cloud database quota used up — auto-retrying'}
+              </span>
+              {QUOTA_UNSYNCED && (
+                <span className="md:hidden font-black">{cloudSync.pending}</span>
+              )}
+            </button>
+          )}
+
+          {/* Dark Mode Toggle */}
           {/* Dark Mode Toggle */}
           <button
             onClick={toggleDarkMode}
