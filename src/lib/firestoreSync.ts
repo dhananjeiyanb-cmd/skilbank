@@ -1,6 +1,5 @@
 import { doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from './firebase';
-import { syncDocToSupabase, deleteDocFromSupabase, isSupabaseConfigured } from './supabase';
 
 /**
  * Converts JS values into Firestore-safe values.
@@ -315,4 +314,119 @@ function bootDurableQueue(): void {
   });
 }
 
-// === END PART 2 ===
+/* ------------------------------------------------------------------ */
+/* Public API                                                          */
+/* ------------------------------------------------------------------ */
+
+export async function syncDocToFirestore(collectionName: string, docId: string | number, data: any) {
+  if (docId === undefined || docId === null) {
+    console.warn(`[syncDocToFirestore] Skipping write: invalid docId for collection "${collectionName}"`);
+    return;
+  }
+  const cleanId = String(docId).trim().replace(/\//g, '_');
+    if (!cleanId) return;
+  const path = `${collectionName}/${cleanId}`;
+
+  try {
+    const sanitized = sanitizeForFirestore(data);
+    await setDoc(doc(db, collectionName, cleanId), sanitized, { merge: true });
+    // A write just succeeded — nothing pending means we are fully synced.
+    if (flushing === false && pendingOps.length === 0) {
+      lastErrorCode = null;
+      lastErrorAt = null;
+    }
+  } catch (error: any) {
+    if (isTransientError(error)) {
+      enqueueRetry({ kind: 'write', collection: collectionName, docId: cleanId, data });
+    } else {
+      lastErrorCode = error?.code || null;
+      lastErrorAt = Date.now();
+      handleFirestoreError(error, OperationType.WRITE, path);
+    }
+  }
+}
+
+export async function deleteDocFromFirestore(collectionName: string, docId: string | number) {
+  if (docId === undefined || docId === null) {
+    console.warn(`[deleteDocFromFirestore] Skipping delete: invalid docId for collection "${collectionName}"`);
+    return;
+  }
+  const cleanId = String(docId).trim().replace(/\//g, '_');
+  if (!cleanId) return;
+    const path = `${collectionName}/${cleanId}`;
+
+  try {
+    await deleteDoc(doc(db, collectionName, cleanId));
+  } catch (error: any) {
+    if (isTransientError(error)) {
+      enqueueRetry({ kind: 'delete', collection: collectionName, docId: cleanId });
+    } else {
+      lastErrorCode = error?.code || null;
+      lastErrorAt = Date.now();
+      handleFirestoreError(error, OperationType.DELETE, path);
+    }
+  }
+}
+
+/**
+ * Number of writes/deletes still waiting to reach the cloud database.
+ * Surface this in the UI so staff know when the app is catching up.
+ */
+export function getPendingFirestoreSyncCount(): number {
+  return pendingOps.length;
+}
+
+/** Detailed sync status for the UI (pending count + last error, if any). */
+export interface FirestoreSyncStatusInfo {
+  pendingCount: number;
+  lastErrorCode: string | null;
+  lastErrorAt: number | null;
+  isFlushing: boolean;
+}
+
+export function getFirestoreSyncStatus(): FirestoreSyncStatusInfo {
+  return {
+    pendingCount: pendingOps.length,
+    lastErrorCode,
+    lastErrorAt,
+    isFlushing: flushing,
+  };
+}
+
+/** Force an immediate attempt to flush the durable queue. */
+export function flushPendingFirestoreSync(): void {
+  void processPendingOps();
+}
+
+/**
+ * Called once on app start to resume any durable queue left over from a
+ * previous page session. Kept as an explicit init so the module stays safe
+ * to import in non-browser contexts.
+ */
+export function initFirestoreDurableQueue(): void {
+  bootDurableQueue();
+}
+
+/* ------------------------------------------------------------------ */
+/* NOTE: The three exports below are intentionally only for unit-testing
+ * the durable-queue logic in a non-browser environment (no IndexedDB). They
+ * do NOT touch the network — they exercise enqueue/dedup/persistence only.
+ * They are not used by application code.                     */
+/* ------------------------------------------------------------------ */
+interface __TestOp { kind: 'write' | 'delete'; collection: string; docId: string; data?: any }
+window: any = {}
+export function __testClearPendingOps(): void {
+  pendingOps = [];
+  saveQueue();
+}
+export function __testEnqueue(op: __TestOp): void {
+  dedupInsert(op);
+  saveQueue();
+}
+export function __testGetPendingOps(): __TestOp[] {
+  if (pendingOps.length === 0) {
+    const cached = loadQueue();
+    if (cached.length > 0) pendingOps = cached;
+  }
+  return pendingOps.map((p) => ({ kind: p.kind, collection: p.collection, docId: p.docId, data: p.data }));
+}
