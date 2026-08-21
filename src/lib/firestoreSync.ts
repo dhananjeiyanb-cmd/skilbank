@@ -172,4 +172,147 @@ function dedupInsert(op: PendingOp): void {
   pendingOps.push(op);
 }
 
-// === END PART 1 ===
+/* ------------------------------------------------------------------ */
+/* Retry scheduling                                                    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Firestore returns these error shapes for transient quota/throttling/latency
+ * conditions. They should be retried rather than treated as fatal.
+ */
+function isTransientError(error: any): boolean {
+  const code = error?.code;
+  const msg = typeof error?.message === 'string' ? error.message : String(error?.message ?? '');
+  return (
+    code === 'resource-exhausted' ||
+    code === 'quota-exceeded' ||
+    code === 'RESOURCE_EXHAUSTED' ||
+    code === 'unavailable' ||
+    code === 'deadline-exceeded' ||
+    code === 'internal' ||
+    code === 'network' ||
+    code === 'aborted' ||
+    msg.includes('Quota limit exceeded') ||
+    msg.includes('Resource exhausted') ||
+    msg.includes('RESOURCE_EXHAUSTED') ||
+    msg.includes('Rate limited') ||
+    msg.includes('try again later')
+  );
+}
+
+function isQuotaError(error: any): boolean {
+  const code = error?.code;
+  const msg = typeof error?.message === 'string' ? error.message : String(error?.message ?? '');
+  return (
+    code === 'resource-exhausted' ||
+    code === 'RESOURCE_EXHAUSTED' ||
+    code === 'quota-exceeded' ||
+    msg.includes('Quota limit exceeded') ||
+    msg.includes('Resource exhausted') ||
+    msg.includes('RESOURCE_EXHAUSTED')
+  );
+}
+
+function scheduleRetry(): void {
+  if (retryTimer !== null) return;
+  retryTimer = setTimeout(() => {
+    retryTimer = null;
+    void processPendingOps();
+  }, backoffMs);
+}
+
+function enqueueRetry(op: PendingOp): void {
+  dedupInsert(op);
+  backoffMs = backoffMs > INITIAL_BACKOFF_MS ? backoffMs : INITIAL_BACKOFF_MS;
+  if (op.kind === 'write') {
+    console.warn(
+      `[syncDocToFirestore] Firestore temporarily unavailable for "${op.collection}/${op.docId}" — queued for automatic retry (${pendingOps.length} op(s) pending).`
+    );
+  }
+  saveQueue();
+  scheduleRetry();
+}
+
+/**
+ * Process the durable retry queue. Writes are safe to re-run repeatedly
+ * because `setDoc(..., { merge: true })` is idempotent.
+ */
+async function processPendingOps(): Promise<void> {
+  if (flushing || pendingOps.length === 0) return;
+  flushing = true;
+  try {
+    let processed = 0;
+    while (pendingOps.length > 0 && processed < MAX_OPS_PER_FLUSH) {
+      const op = pendingOps[0];
+      try {
+        if (op.kind === 'write') {
+          const sanitized = sanitizeForFirestore(op.data);
+          await setDoc(doc(db, op.collection, op.docId), sanitized, { merge: true });
+        } else {
+          await deleteDoc(doc(db, op.collection, op.docId));
+        }
+        pendingOps.shift();
+        lastErrorCode = null;
+        lastErrorAt = null;
+        backoffMs = INITIAL_BACKOFF_MS;
+      } catch (error: any) {
+        if (isTransientError(error)) {
+          if (isQuotaError(error)) {
+            lastErrorCode = error?.code || 'resource-exhausted';
+            lastErrorAt = Date.now();
+            backoffMs = QUOTA_BACKOFF_MS;
+          } else {
+            backoffMs = Math.min(Math.max(backoffMs * 2, INITIAL_BACKOFF_MS), MAX_BACKOFF_MS);
+          }
+          scheduleRetry();
+          break;
+        }
+        pendingOps.shift();
+        lastErrorCode = error?.code || null;
+        lastErrorAt = Date.now();
+        handleFirestoreError(error, op.kind === 'write' ? OperationType.WRITE : OperationType.DELETE, `${op.collection}/${op.docId}`);
+      }
+      processed += 1;
+    }
+
+    if (pendingOps.length > 0 && retryTimer === null) {
+      scheduleRetry();
+    }
+    saveQueue();
+  } finally {
+    flushing = false;
+  }
+}
+
+/**
+ * Kick off a flush shortly after the module loads (for durable queue entries
+ * that were persisted by a previous page session), and whenever the browser
+ * regains connectivity / the tab is shown again.
+ */
+function bootDurableQueue(): void {
+  if (!isLocalStorageAvailable()) return;
+  try {
+    const queued = loadQueue();
+    if (queued.length > 0) {
+      pendingOps = queued;
+      console.log(`[syncDocToFirestore] Resumed ${pendingOps.length} pending cloud-sync op(s) from previous session.`);
+      window.setTimeout(() => void processPendingOps(), 5000);
+    }
+  } catch (err) {
+    console.warn('[syncDocToFirestore] Failed to resume durable queue:', err);
+  }
+  window.addEventListener('online', () => {
+    if (retryTimer !== null) {
+      clearTimeout(retryTimer);
+      retryTimer = null;
+    }
+    void processPendingOps();
+  });
+  window.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      void processPendingOps();
+    }
+  });
+}
+
+// === END PART 2 ===
