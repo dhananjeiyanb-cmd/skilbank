@@ -419,7 +419,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [skillBankStudents, setSkillBankStudents] = useState<StudentSkillBankData[]>(() => {
-    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY_PREFIX}skill_bank_students_v11`);
+    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY_PREFIX}skill_bank_students_v12`);
     if (saved) {
       try {
         const parsed: StudentSkillBankData[] = JSON.parse(saved);
@@ -432,18 +432,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.error('Error parsing saved skill bank students:', err);
       }
     }
-    return INITIAL_STUDENTS_SKILL_BANK.filter((st) => sanitizeDepartmentName(st.studentProfile?.department));
+    return [];
   });
 
   const [mentorMappings, setMentorMappings] = useState<MentorMenteeMapping[]>(() => {
-    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY_PREFIX}mentor_mappings_v1`);
+    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY_PREFIX}mentor_mappings_v2`);
     if (saved) {
       try {
         const parsed: MentorMenteeMapping[] = JSON.parse(saved);
         if (Array.isArray(parsed)) return parsed;
       } catch {}
     }
-    return buildMentorMappingsFromStudents(INITIAL_STUDENTS_SKILL_BANK);
+    return [];
   });
   // Keeps the last derived mapping snapshot so we only write to Firestore when
   // a mentor's allocation actually changed (avoids write/listener loops).
@@ -559,7 +559,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [eventsList]);
 
   useEffect(() => {
-    localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}skill_bank_students_v11`, JSON.stringify(skillBankStudents));
+    localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}skill_bank_students_v12`, JSON.stringify(skillBankStudents));
   }, [skillBankStudents]);
 
   // Keep the dedicated Mentor → Mentee mapping collection in sync with the
@@ -596,7 +596,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     derivedMentorMappingsRef.current = derived;
     setMentorMappings(derived);
-    localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}mentor_mappings_v1`, JSON.stringify(derived));
+    localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}mentor_mappings_v2`, JSON.stringify(derived));
   }, [skillBankStudents, staffList]);
 
   useEffect(() => {
@@ -916,7 +916,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const unsubSkill = onSnapshot(collection(db, 'skillBankStudents'), (snapshot) => {
       let localArr: StudentSkillBankData[] = [];
       try {
-        const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY_PREFIX}skill_bank_students_v11`);
+        const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY_PREFIX}skill_bank_students_v12`);
         if (saved) {
           const parsed = JSON.parse(saved);
           if (Array.isArray(parsed)) localArr = parsed;
@@ -933,7 +933,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (cleanedLocal.length > 0) {
           setSkillBankStudents(cleanedLocal);
         } else {
-          setSkillBankStudents(INITIAL_STUDENTS_SKILL_BANK.filter(isNotRecentlyDeletedStudent));
+          setSkillBankStudents([]);
         }
       } else {
         const items = snapshot.docs
@@ -960,7 +960,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         const finalStudents = Array.from(map.values());
         setSkillBankStudents(finalStudents);
-        localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}skill_bank_students_v11`, JSON.stringify(finalStudents));
+        localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}skill_bank_students_v12`, JSON.stringify(finalStudents));
       }
     }, (error) => handleFirestoreError(error, OperationType.GET, 'skillBankStudents'));
 
@@ -2622,7 +2622,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const updated = exists
         ? prev.map((s) => (s.studentProfile?.registerNumber === regNum ? normalized : s))
         : [normalized, ...prev];
-      localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}skill_bank_students_v11`, JSON.stringify(updated));
+      localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}skill_bank_students_v12`, JSON.stringify(updated));
       return updated;
     });
     if (docId) syncDocToFirestore('skillBankStudents', docId, normalized);
@@ -2640,7 +2640,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setSkillBankStudents((prev) => {
       const updated = prev.filter((s) => (s.studentProfile?.registerNumber || '').trim().toLowerCase() !== cleanReg);
-      localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}skill_bank_students_v11`, JSON.stringify(updated));
+      localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}skill_bank_students_v12`, JSON.stringify(updated));
       return updated;
     });
 
@@ -2683,7 +2683,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setSkillBankStudents((prev) => {
       const updated = prev.filter((s) => !cleanRegs.includes((s.studentProfile?.registerNumber || '').trim().toLowerCase()));
-      localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}skill_bank_students_v11`, JSON.stringify(updated));
+      localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}skill_bank_students_v12`, JSON.stringify(updated));
       return updated;
     });
 
@@ -2727,7 +2727,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const removed = prev.filter((s) => isSameDept(s.studentProfile?.department || '', departmentName));
       removed.forEach((s) => recentlyDeletedStudentRegs.add((s.studentProfile?.registerNumber || '').trim().toLowerCase()));
       const toKeep = prev.filter((s) => !isSameDept(s.studentProfile?.department || '', departmentName));
-      localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}skill_bank_students_v11`, JSON.stringify(toKeep));
+      localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}skill_bank_students_v12`, JSON.stringify(toKeep));
       return toKeep;
     });
 
@@ -2748,7 +2748,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const clearAllSkillBankStudents = async () => {
     setSkillBankStudents([]);
-    localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}skill_bank_students_v11`, JSON.stringify([]));
+    localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}skill_bank_students_v12`, JSON.stringify([]));
 
     try {
       const snap = await getDocs(collection(db, 'skillBankStudents'));
@@ -2797,7 +2797,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return s;
     });
     setSkillBankStudents(nextStudents);
-    localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}skill_bank_students_v11`, JSON.stringify(nextStudents));
+    localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}skill_bank_students_v12`, JSON.stringify(nextStudents));
 
     // 2) Save every affected student doc to the database immediately
     //    (mentorStaffId + mentorFaculty are stored on the student record too).
@@ -2849,7 +2849,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }));
     setMentorMappings(derivedWithTime);
     derivedMentorMappingsRef.current = derivedWithTime;
-    localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}mentor_mappings_v1`, JSON.stringify(derivedWithTime));
+    localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}mentor_mappings_v2`, JSON.stringify(derivedWithTime));
 
     await Promise.all(
       derivedWithTime.map(async (m) => {
@@ -2904,7 +2904,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const merged = Array.from(map.values());
 
     setSkillBankStudents(merged);
-    localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}skill_bank_students_v11`, JSON.stringify(merged));
+    localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}skill_bank_students_v12`, JSON.stringify(merged));
     logAction('Import Sheets', `Uploaded/Imported sheet details for ${normalizedNewStudents.length} student records`);
 
     // Persist skillBankStudents + the derived mentorMappings collection to
@@ -2939,7 +2939,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }));
         setMentorMappings(derivedWithTime);
         derivedMentorMappingsRef.current = derivedWithTime;
-        localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}mentor_mappings_v1`, JSON.stringify(derivedWithTime));
+        localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}mentor_mappings_v2`, JSON.stringify(derivedWithTime));
 
         await Promise.all(
           derivedWithTime.map(async (m) => {
@@ -3416,7 +3416,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setMonitoringList(INITIAL_DAILY_MONITORING);
     setLessonPlanList(INITIAL_LESSON_PLANS);
     setAttendanceRecords(INITIAL_ATTENDANCE_RECORDS);
-    setSkillBankStudents(INITIAL_STUDENTS_SKILL_BANK);
+    setSkillBankStudents([]);
     setDailyReport(INITIAL_HOD_REPORT);
     setNotifications(INITIAL_NOTIFICATIONS);
     setEventsList(INITIAL_EVENTS);
@@ -3447,7 +3447,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.removeItem(`${LOCAL_STORAGE_KEY_PREFIX}lesson_plans`);
     localStorage.removeItem(`${LOCAL_STORAGE_KEY_PREFIX}attendance_records`);
     localStorage.removeItem(`${LOCAL_STORAGE_KEY_PREFIX}skill_bank_students`);
-    localStorage.removeItem(`${LOCAL_STORAGE_KEY_PREFIX}skill_bank_students_v11`);
+    localStorage.removeItem(`${LOCAL_STORAGE_KEY_PREFIX}skill_bank_students_v12`);
+    localStorage.removeItem(`${LOCAL_STORAGE_KEY_PREFIX}mentor_mappings_v2`);
     localStorage.removeItem(`${LOCAL_STORAGE_KEY_PREFIX}report`);
     localStorage.removeItem(`${LOCAL_STORAGE_KEY_PREFIX}hod_attendance_records`);
     localStorage.removeItem(`${LOCAL_STORAGE_KEY_PREFIX}notifications`);
