@@ -524,3 +524,13 @@ export type QuestionCategory =
 
 export type DifficultyLevel = 'Easy' | 'Medium' | 'Hard';
 
+export interface SystemLog {
+  id: string;
+  timestamp: string; // ISO format string
+  userId: string;
+  userName: string;
+  role: string;
+  department: string;
+  action: string;
+  details: string;
+}

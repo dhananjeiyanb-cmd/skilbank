@@ -25,6 +25,7 @@ import { FacultyKpiView } from './views/FacultyKpiView';
 import { CdcExamManagementView } from './views/CdcExamManagementView';
 import { CdcDashboardView } from './views/CdcDashboardView';
 import { StudentExamView } from './views/StudentExamView';
+import { SystemLogsView } from './views/SystemLogsView';
 import { BookOpen } from 'lucide-react';
 
 const MainContent: React.FC = () => {
@@ -62,7 +63,7 @@ const MainContent: React.FC = () => {
     }
 
     if (isStaffUser) {
-      const hodOnlyTabs = ['staff', 'observations', 'monitoring', 'daily_report', 'mentor_mapping'];
+      const hodOnlyTabs = ['staff', 'observations', 'monitoring', 'daily_report', 'mentor_mapping', 'system_logs'];
 
       // Events tab only accessible if Event Coordinator
       if (activeTab === 'events' && currentUser.coordinatorRole !== 'Event Coordinator') {
@@ -180,6 +181,8 @@ const MainContent: React.FC = () => {
           {activeTab === 'skill_bank' && <SkillBankView />}
 
           {activeTab === 'principal_ssb_dashboard' && <PrincipalSsbdashboardView />}
+
+          {activeTab === 'system_logs' && <SystemLogsView />}
 
           {activeTab === 'faculty_kpi' && <FacultyKpiView />}
 

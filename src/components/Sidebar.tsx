@@ -135,6 +135,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       badgeColor: 'bg-amber-500 text-slate-950 font-bold',
     },
     {
+      id: 'system_logs',
+      label: 'System Logs (LOG)',
+      icon: ClipboardList,
+      roles: ['principal', 'admin', 'secretary', 'principal_pa', 'secretary_pa'],
+      badge: 'LOGS',
+      badgeColor: 'bg-indigo-600 text-white font-bold',
+    },
+    {
       id: 'faculty_kpi',
       label: 'My KPI Dashboard',
       icon: Award,

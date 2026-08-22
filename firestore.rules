@@ -97,5 +97,9 @@ service cloud.firestore {
     match /cdcSuspiciousLogs/{docId} {
       allow read, write: if true;
     }
+
+    match /systemLogs/{docId} {
+      allow read, write: if true;
+    }
   }
 }

@@ -210,7 +210,7 @@ async function main(): Promise<void> {
     if (g.docs.length === 0) continue;
     let gOk = 0;
     for (const d of g.docs) {
-      const res = await upsertDoc(g.collection, d.id, d.data);
+      const res = await upsertDoc(g.collection, d.id, d.data as Record<string, unknown>);
       if (res.ok) {
         gOk += 1;
         okCount += 1;
