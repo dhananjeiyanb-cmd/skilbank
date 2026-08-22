@@ -445,7 +445,14 @@ export function downloadHODStudentTemplate() {
   XLSX.writeFile(wb, 'Sasurie_SSB_Student_Master_Template.xlsx');
 }
 
-// Function to parse Excel File uploaded by HOD
+// Normalize a spreadsheet header so that "Register Number", "RegisterNumber",
+// "Reg. No", "RegNo", "Roll No", "Mentor Staff ID", etc. all resolve to the
+// same lookup key regardless of spacing / punctuation / casing.
+export function normalizeHeaderKey(key: string): string {
+  return String(key || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+// Function to parse Excel / CSV File uploaded by HOD
 export async function parseExcelStudentFile(file: File): Promise<StudentSkillBankData[]> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -458,108 +465,107 @@ export async function parseExcelStudentFile(file: File): Promise<StudentSkillBan
         const worksheet = workbook.Sheets[firstSheetName];
         const rawJson: any[] = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
 
-        const importedStudents: StudentSkillBankData[] = rawJson
-          .map((row) => {
-            // Flexible header matching
-            const regNo =
-              String(
-                row['Register Number'] ||
-                row['Reg No'] ||
-                row['RegisterNo'] ||
-                row['registerNumber'] ||
-                row['REG_NO'] ||
-                ''
-              ).trim();
+        // Rows dropped because they carry no register number / student name.
+        let skippedRows = 0;
 
-            const studentName =
-              String(
-                row['Student Name'] ||
-                row['Name'] ||
-                row['StudentName'] ||
-                row['studentName'] ||
-                row['STUDENT_NAME'] ||
-                ''
-              ).trim();
+        const importedStudents: StudentSkillBankData[] = [];
 
-            if (!regNo && !studentName) return null;
+        rawJson.forEach((row, rowIdx) => {
+          // Build a normalized header lookup for THIS row so every export
+          // format ("Register Number", "RegisterNumber", "Reg. No", "Roll No",
+          // plus the mentor-mapping CSV columns) can be read reliably.
+          const normRow: Record<string, any> = {};
+          Object.keys(row).forEach((k) => {
+            normRow[normalizeHeaderKey(k)] = row[k];
+          });
 
-            const yearInput =
-              String(
-                row['Academic Year'] ||
-                row['Year'] ||
-                row['AcademicYear'] ||
-                row['academicYear'] ||
-                row['YEAR'] ||
-                row['year'] ||
-                ''
-              ).trim();
+          const cell = (aliases: string[]): string => {
+            for (const a of aliases) {
+              const v = normRow[a];
+              if (v !== undefined && v !== null && String(v).trim() !== '') {
+                return String(v).trim();
+              }
+            }
+            return '';
+          };
 
-            const secInput =
-              String(
-                row['Section'] ||
-                row['Sec'] ||
-                row['section'] ||
-                row['SECTION'] ||
-                'A'
-              ).trim();
+          const regNo = cell([
+            'registernumber',
+            'regno',
+            'registerno',
+            'rollno',
+            'sno',
+            'studentid',
+            'enrollmentno',
+            'enrollmentnumber',
+          ]);
+          const studentName = cell(['studentname', 'name', 'candidatename', 'username']);
 
-            const deptInput =
-              String(
-                row['Department'] ||
-                row['Dept'] ||
-                row['department'] ||
-                row['DEPARTMENT'] ||
-                ''
-              ).trim();
+          // Rows without any identity are SKIPPED. The register number is the
+          // primary key everywhere (Firestore doc id, mentor mappings,
+          // attendance, skill bank) — fabricating a random number here is what
+          // made CSV imports silently save the wrong students to the database.
+          if (!regNo && !studentName) {
+            skippedRows += 1;
+            return;
+          }
 
-            const emailInput =
-              String(
-                row['Student Email'] ||
-                row['Email'] ||
-                row['studentEmail'] ||
-                row['EMAIL'] ||
-                row['email'] ||
-                ''
-              ).trim();
+          const batchInput = cell(['batch', 'batchyear', 'admissionyear', 'yearofadmission']);
+          const yearInput = cell(['yeargroup', 'year', 'academicyear', 'yearofstudy', 'studyyear', 'cohort']);
+          const secInput = cell(['section', 'sec']) || 'A';
+          const deptInput = cell(['department', 'dept', 'deptname']);
+          const emailInput = cell(['studentemail', 'email', 'mailid', 'mail']);
+          const mobileInput = cell(['studentmobile', 'mobile', 'phone', 'phonenumber', 'contactno']);
+          const mentor =
+            cell(['mentorfaculty', 'mentorfacultyname', 'mentorname', 'mentor']) ||
+            'M. Kaviyarasu (Asst. Prof / III Year Mentor)';
+          const mentorStaffId = cell(['mentorstaffid', 'mentorid', 'staffid', 'facultyid']);
+          const semesterInput = cell(['semester']);
+          const degreeBranchInput = cell(['degreebranch', 'branch', 'course', 'programme', 'program', 'degree']);
 
-            const mobileInput =
-              String(
-                row['Student Mobile'] ||
-                row['Mobile'] ||
-                row['studentMobile'] ||
-                row['MOBILE'] ||
-                row['mobile'] ||
-                '9876543210'
-              ).trim();
+          // Most files label the cohort directly ("2nd Year" / "3rd Year"), but
+          // some exports put the session ("2025-2026") in the Academic Year
+          // column. In that case derive the cohort from the Batch intake year
+          // (2025 -> 1st, 2024 -> 2nd, 2023 -> 3rd, 2022 -> 4th).
+          let resolvedYear = yearInput;
+          if (!/^(1st|2nd|3rd|4th|\d+\s*(st|nd|rd|th)?\s*year)/i.test(yearInput)) {
+            const yearMatch = String(yearInput).match(/\d{4}/) || String(batchInput).match(/\d{4}/);
+            const batchNum = yearMatch ? parseInt(yearMatch[0], 10) : NaN;
+            if (!Number.isNaN(batchNum)) {
+              if (batchNum >= 2025) resolvedYear = '1st Year';
+              else if (batchNum === 2024) resolvedYear = '2nd Year';
+              else if (batchNum === 2023) resolvedYear = '3rd Year';
+              else if (batchNum <= 2022) resolvedYear = '4th Year';
+            }
+          }
 
-            const mentor =
-              String(
-                row['Mentor Faculty Name'] ||
-                row['Mentor'] ||
-                row['Mentor Name'] ||
-                row['mentorFaculty'] ||
-                'M. Kaviyarasu (Asst. Prof / III Year Mentor)'
-              ).trim();
-
-            return createDefaultStudentSkillBankRecord({
-              registerNumber: regNo || `73242210${Math.floor(1000 + Math.random() * 9000)}`,
+          importedStudents.push(
+            createDefaultStudentSkillBankRecord({
+              registerNumber: regNo || `STU_TBD_${rowIdx + 1}`,
               studentName: studentName || 'Uploaded Student',
-              academicYear: yearInput || '2nd Year',
+              academicYear: resolvedYear || '2nd Year',
               section: secInput || 'A',
               department: deptInput,
-              degreeBranch: String(row['Degree & Branch'] || row['Branch'] || 'B.E. Computer Science & Engineering'),
-              batch: String(row['Batch'] || ''),
-              semester: String(row['Semester'] || ''),
+              degreeBranch: degreeBranchInput || 'B.E. Computer Science & Engineering',
+              batch: batchInput || '',
+              semester: semesterInput || '',
               mentorFaculty: mentor,
-              studentMobile: mobileInput,
-              studentEmail: emailInput,
-              fatherName: String(row['Father Name'] || ''),
-              fatherMobile: String(row['Father Mobile'] || ''),
-              dreamCompany: String(row['Dream Company'] || 'Zoho Corp'),
-              careerGoal: String(row['Career Goal'] || 'Software Engineer'),
-            });
-          })
-          .filter((item): item is StudentSkillBankData => item !== null);
+              mentorStaffId,
+              studentMobile: mobileInput || '9876543210',
+              studentEmail: emailInput || (regNo ? `${regNo.toLowerCase()}@sasurie.ac.in` : ''),
+              fatherName: cell(['fathername']),
+              fatherMobile: cell(['fathermobile', 'fathermobileno']),
+              dreamCompany: cell(['dreamcompany', 'dream company']) || 'Zoho Corp',
+              careerGoal: cell(['careergoal', 'career goal']) || 'Software Engineer',
+            })
+          );
+        });
+
+        if (skippedRows > 0) {
+          console.warn(
+            `[parseExcelStudentFile] Skipped ${skippedRows} row(s) with no register number / student name.`
+          );
+        }
 
         resolve(importedStudents);
       } catch (err) {

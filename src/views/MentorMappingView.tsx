@@ -369,8 +369,14 @@ export const MentorMappingView: React.FC = () => {
           const cols = line.includes('\t') ? line.split('\t') : line.split(',');
           const cleanCols = cols.map((c) => c.replace(/^['\"]|['\"]$/g, '').trim());
 
-          const regNo = cleanCols[0] || `73242210${String(idx + 100).padStart(4, '0')}`;
-          const name = cleanCols[1] || `Student ${idx + 1}`;
+          const rawRegNo = cleanCols[0];
+          const rawName = cleanCols[1];
+          // Skip blank rows — never fabricate fake random register numbers,
+          // those used to get saved into the database under wrong IDs.
+          if (!rawRegNo && !rawName) return;
+
+          const regNo = rawRegNo || `STU_TBD_${idx + 1}`;
+          const name = rawName || `Student ${idx + 1}`;
           const dept = cleanCols[2] || fallbackDept;
           const yearInput = cleanCols[3] || '2nd Year';
           const sec = cleanCols[4] || 'A';
@@ -457,12 +463,12 @@ export const MentorMappingView: React.FC = () => {
 
   // Download CSV Sample Template
   const handleDownloadSampleCsv = () => {
-    const headers = ['Register Number', 'Student Name', 'Department', 'Year', 'Section', 'Email', 'Mobile'];
+    const headers = ['Register Number', 'Student Name', 'Department', 'Year', 'Section', 'Email', 'Mobile', 'Mentor Staff ID', 'Mentor Faculty Name'];
     const sampleRows = [
-      ['732422104001', 'Aakash M', 'Artificial Intelligence & Data Science', '2nd Year', 'A', 'aakash.m@sasurie.ac.in', '9876543210'],
-      ['732422104002', 'Ananya S', 'Artificial Intelligence & Data Science', '2nd Year', 'A', 'ananya.s@sasurie.ac.in', '9876543211'],
-      ['732422104003', 'Bharath K', 'Artificial Intelligence & Data Science', '2nd Year', 'B', 'bharath.k@sasurie.ac.in', '9876543212'],
-      ['732422104004', 'Dharshini R', 'Artificial Intelligence & Data Science', '3rd Year', 'A', 'dharshini.r@sasurie.ac.in', '9876543213'],
+      ['732422104001', 'Aakash M', 'Artificial Intelligence & Data Science', '2nd Year', 'A', 'aakash.m@sasurie.ac.in', '9876543210', 'STF001', 'M. Kaviyarasu (Asst. Prof / III Year Mentor)'],
+      ['732422104002', 'Ananya S', 'Artificial Intelligence & Data Science', '2nd Year', 'A', 'ananya.s@sasurie.ac.in', '9876543211', 'STF001', 'M. Kaviyarasu (Asst. Prof / III Year Mentor)'],
+      ['732422104003', 'Bharath K', 'Artificial Intelligence & Data Science', '2nd Year', 'B', 'bharath.k@sasurie.ac.in', '9876543212', 'STF002', 'Prof. K. Deepa (Asst. Prof / AI & DS)'],
+      ['732422104004', 'Dharshini R', 'Artificial Intelligence & Data Science', '3rd Year', 'A', 'dharshini.r@sasurie.ac.in', '9876543213', 'STF003', 'Dr. S. Tamilselvan (Asst. Prof / AI & DS)'],
     ];
 
     const csvContent = [headers.join(','), ...sampleRows.map((r) => r.join(','))].join('\n');
@@ -1193,7 +1199,7 @@ export const MentorMappingView: React.FC = () => {
                     Click to select CSV/Excel file or Drag & Drop here
                   </p>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    Supported columns: Register Number, Student Name, Department, Year, Section, Email, Mobile
+                    Supported columns: Register Number, Student Name, Department, Year, Section, Email, Mobile. Optional: Mentor Staff ID, Mentor Faculty Name (from Mentor-Mentee mapping exports).
                   </p>
                 </div>
 
