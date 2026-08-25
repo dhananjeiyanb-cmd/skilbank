@@ -18,7 +18,14 @@ const envConfig = {
 };
 
 function hasEnvConfig(cfg: typeof envConfig) {
-  return !!(cfg.apiKey && cfg.projectId);
+  return !!(
+    cfg.apiKey &&
+    cfg.apiKey !== 'undefined' &&
+    cfg.apiKey !== '' &&
+    cfg.projectId &&
+    cfg.projectId !== 'undefined' &&
+    cfg.projectId !== ''
+  );
 }
 
 const firebaseConfig = hasEnvConfig(envConfig) ? envConfig : (firebaseConfigFile as any);

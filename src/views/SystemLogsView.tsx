@@ -35,30 +35,33 @@ export const SystemLogsView: React.FC = () => {
   // Filtered logs computed locally
   const filteredLogs = useMemo(() => {
     return (systemLogs || []).filter((log) => {
+      if (!log) return false;
+
       // 1) Department check (Department-wise grouping/filtering)
       const matchesDept =
         deptFilter === 'all' ||
-        isSameDept(log.department, deptFilter) ||
+        isSameDept(log.department || '', deptFilter) ||
         (log.department && log.department.toLowerCase().includes(deptFilter.toLowerCase()));
 
       // 2) Action check
       let matchesAction = true;
       if (actionFilter !== 'all') {
+        const actionStr = log.action || '';
         if (actionFilter === 'auth') {
-          matchesAction = log.action === 'Login' || log.action === 'Logout' || log.action.includes('Login');
+          matchesAction = actionStr === 'Login' || actionStr === 'Logout' || actionStr.includes('Login');
         } else if (actionFilter === 'mentor') {
-          matchesAction = log.action === 'Mentor-Mentee Allocation';
+          matchesAction = actionStr === 'Mentor-Mentee Allocation';
         } else if (actionFilter === 'sheets') {
-          matchesAction = log.action === 'Import Sheets';
+          matchesAction = actionStr === 'Import Sheets';
         } else if (actionFilter === 'student') {
-          matchesAction = log.action === 'Student Update';
+          matchesAction = actionStr === 'Student Update';
         } else {
-          matchesAction = log.action.toLowerCase() === actionFilter.toLowerCase();
+          matchesAction = actionStr.toLowerCase() === actionFilter.toLowerCase();
         }
       }
 
       // 3) Keyword Search
-      const textToSearch = `${log.userName} ${log.userId} ${log.action} ${log.details} ${log.role}`.toLowerCase();
+      const textToSearch = `${log.userName || ''} ${log.userId || ''} ${log.action || ''} ${log.details || ''} ${log.role || ''}`.toLowerCase();
       const matchesSearch = !searchQuery || textToSearch.includes(searchQuery.toLowerCase());
 
       return matchesDept && matchesAction && matchesSearch;
@@ -69,8 +72,8 @@ export const SystemLogsView: React.FC = () => {
   const sortedLogs = useMemo(() => {
     const logs = [...filteredLogs];
     logs.sort((a, b) => {
-      const timeA = new Date(a.timestamp).getTime();
-      const timeB = new Date(b.timestamp).getTime();
+      const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+      const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
       return sortOrder === 'desc' ? timeB - timeA : timeA - timeB;
     });
     return logs;
@@ -79,10 +82,10 @@ export const SystemLogsView: React.FC = () => {
   // Stats computation for headers
   const stats = useMemo(() => {
     const todayStr = new Date().toISOString().split('T')[0];
-    const logsToday = (systemLogs || []).filter((l) => l.timestamp.startsWith(todayStr));
+    const logsToday = (systemLogs || []).filter((l) => l && l.timestamp && l.timestamp.startsWith(todayStr));
 
-    const loginsToday = logsToday.filter((l) => l.action.toLowerCase().includes('login')).length;
-    const updatesToday = logsToday.filter((l) => l.action !== 'Login' && l.action !== 'Logout').length;
+    const loginsToday = logsToday.filter((l) => l.action && l.action.toLowerCase().includes('login')).length;
+    const updatesToday = logsToday.filter((l) => l.action && l.action !== 'Login' && l.action !== 'Logout').length;
 
     return {
       loginsToday,
@@ -93,6 +96,7 @@ export const SystemLogsView: React.FC = () => {
 
   // Date formatter
   const formatLogDate = (isoString: string) => {
+    if (!isoString) return 'N/A';
     try {
       const d = new Date(isoString);
       return d.toLocaleString('en-IN', {
@@ -110,7 +114,7 @@ export const SystemLogsView: React.FC = () => {
 
   // Colored action tag generator
   const getActionBadge = (action: string) => {
-    const act = action.toLowerCase();
+    const act = (action || '').toLowerCase();
     if (act === 'login') {
       return (
         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800">
@@ -123,7 +127,7 @@ export const SystemLogsView: React.FC = () => {
       return (
         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-sky-50 text-sky-700 border border-sky-200 dark:bg-sky-950/60 dark:text-sky-300 dark:border-sky-800">
           <LogIn className="w-3.5 h-3.5" />
-          {action}
+          {action || ''}
         </span>
       );
     }
@@ -327,31 +331,31 @@ export const SystemLogsView: React.FC = () => {
                       <td className="p-4 font-semibold text-slate-500 dark:text-slate-400 whitespace-nowrap">
                         <div className="flex items-center gap-1.5">
                           <Calendar className="w-3.5 h-3.5 opacity-60 text-slate-400" />
-                          {formatLogDate(log.timestamp)}
+                           {formatLogDate(log.timestamp || '')}
                         </div>
                       </td>
                       <td className="p-4">
                         <div className="flex items-center gap-2.5">
                           <img
-                            src={getGoogleAvatarUrl(log.userId + '@sasurie.com', log.userName, log.role as any)}
-                            alt={log.userName}
+                            src={getGoogleAvatarUrl((log.userId || '') + '@sasurie.com', log.userName || '', (log.role || 'staff') as any)}
+                            alt={log.userName || 'User'}
                             className="w-8 h-8 rounded-full border border-slate-200 dark:border-slate-700 object-cover bg-slate-100"
                             onError={(e) => {
                               const target = e.currentTarget;
                               target.onerror = null;
                               target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                                log.userName
+                                log.userName || 'User'
                               )}&background=0284c7&color=fff`;
                             }}
                           />
                           <div className="min-w-0">
                             <div className="font-bold text-slate-900 dark:text-white truncate">
-                              {log.userName}
+                              {log.userName || 'Unknown'}
                             </div>
                             <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider flex items-center gap-1.5 mt-0.5">
-                              <span>ID: {log.userId}</span>
+                              <span>ID: {log.userId || 'N/A'}</span>
                               <span className="w-1 h-1 rounded-full bg-slate-300 dark:bg-slate-700"></span>
-                              <span className="capitalize">{log.role}</span>
+                              <span className="capitalize">{log.role || 'staff'}</span>
                             </div>
                             {log.department && (
                               <div className="text-[9px] text-slate-500 font-medium mt-0.5 truncate max-w-[200px]">
@@ -361,10 +365,10 @@ export const SystemLogsView: React.FC = () => {
                           </div>
                         </div>
                       </td>
-                      <td className="p-4 whitespace-nowrap">{getActionBadge(log.action)}</td>
+                      <td className="p-4 whitespace-nowrap">{getActionBadge(log.action || '')}</td>
                       <td className="p-4">
                         <div className="text-slate-700 dark:text-slate-300 font-medium leading-relaxed break-words max-w-[500px]">
-                          {log.details}
+                          {log.details || ''}
                         </div>
                       </td>
                     </tr>
