@@ -734,8 +734,12 @@ export const MentorMappingView: React.FC = () => {
                   return Array.from(classesSet).join(', ');
                 }, [mentees]);
 
-                const selYear = rowMapYear[staff.id] || '2nd Year';
-                const selSec = rowMapSec[staff.id] || 'A';
+                const firstMentee = mentees[0];
+                const defaultYear = firstMentee?.studentProfile?.academicYear || '2nd Year';
+                const defaultSec = firstMentee?.studentProfile?.section || 'A';
+
+                const selYear = rowMapYear[staff.id] || defaultYear;
+                const selSec = rowMapSec[staff.id] || defaultSec;
 
                 return (
                   <tr key={staff.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-700/40">
