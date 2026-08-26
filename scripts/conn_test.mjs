@@ -25,16 +25,21 @@ async function run() {
     console.log('GET system/connection_test FAILED:', e.code, e.message);
   }
 
-  // 2) Write test into 'staff'
+  // 2) Write test into 'systemLogs'
   try {
-    await setDoc(doc(db, 'staff', 'CONN_TEST'), {
+    await setDoc(doc(db, 'systemLogs', 'CONN_TEST'), {
       id: 'CONN_TEST',
-      facultyName: 'Connection Test',
-      message: 'written-at-' + new Date().toISOString(),
+      timestamp: new Date().toISOString(),
+      userId: 'test_user',
+      userName: 'Test User',
+      role: 'staff',
+      department: 'test_dept',
+      action: 'test_action',
+      details: 'test_details',
     }, { merge: true });
-    console.log('WRITE staff/CONN_TEST OK');
+    console.log('WRITE systemLogs/CONN_TEST OK');
   } catch (e) {
-    console.log('WRITE staff/CONN_TEST FAILED:', e.code, e.message);
+    console.log('WRITE systemLogs/CONN_TEST FAILED:', e.code, e.message);
   }
 
   // 3) List a couple of collections to see what actually exists server-side
