@@ -48,6 +48,31 @@ import { normalizeStudentSkillBankRecord } from '../utils/excelSkillBank';
 import { computeDepartmentSsb, DEPARTMENT_RANKING_OPTIONS, getDepartmentRankingId, DepartmentSsbtotals } from '../utils/principalSsbutil';
 import { hashPassword, verifyPassword } from '../utils/passwordUtils';
 
+// Intercept localStorage.setItem globally to handle QuotaExceededError and show user warning message
+const originalSetItem = window.localStorage.setItem;
+let onQuotaExceeded: (() => void) | null = null;
+
+window.localStorage.setItem = function (key: string, value: string) {
+  try {
+    originalSetItem.call(window.localStorage, key, value);
+  } catch (error) {
+    console.error(`localStorage.setItem failed for key "${key}":`, error);
+    if (
+      error instanceof Error &&
+      (error.name === 'QuotaExceededError' ||
+        error.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+        error.message.toLowerCase().includes('quota') ||
+        error.message.toLowerCase().includes('exceeded'))
+    ) {
+      if (onQuotaExceeded) {
+        onQuotaExceeded();
+      }
+    } else {
+      throw error;
+    }
+  }
+};
+
 const getStudentDocId = (st: StudentSkillBankData): string => {
   if (!st) return '';
   const reg = st.studentProfile?.registerNumber;
@@ -209,6 +234,7 @@ interface AppContextType {
   deleteCCMMeeting: (id: string) => void;
   systemLogs: SystemLog[];
   logAction: (action: string, details: string) => Promise<void>;
+  localStorageQuotaExceeded: boolean;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -273,6 +299,17 @@ const dedupeAttendanceRecords = (records: StudentAttendanceRecord[]): StudentAtt
 };
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [localStorageQuotaExceeded, setLocalStorageQuotaExceeded] = useState(false);
+
+  useEffect(() => {
+    onQuotaExceeded = () => {
+      setLocalStorageQuotaExceeded(true);
+    };
+    return () => {
+      onQuotaExceeded = null;
+    };
+  }, []);
+
   // Load from localStorage or seed
   const [dailyReport, setDailyReport] = useState<DailyHODReport>(() => {
     const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY_PREFIX}report`);
@@ -3617,6 +3654,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     deleteCCMMeeting,
     systemLogs,
     logAction,
+    localStorageQuotaExceeded,
       }}
     >
       {children}

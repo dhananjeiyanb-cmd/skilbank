@@ -26,10 +26,10 @@ import { CdcExamManagementView } from './views/CdcExamManagementView';
 import { CdcDashboardView } from './views/CdcDashboardView';
 import { StudentExamView } from './views/StudentExamView';
 import { SystemLogsView } from './views/SystemLogsView';
-import { BookOpen } from 'lucide-react';
+import { BookOpen, RefreshCw } from 'lucide-react';
 
 const MainContent: React.FC = () => {
-  const { currentUser, activeTab, setActiveTab } = useApp();
+  const { currentUser, activeTab, setActiveTab, localStorageQuotaExceeded } = useApp();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // Trigger states for quick modals
@@ -217,6 +217,46 @@ const MainContent: React.FC = () => {
           )}
         </main>
       </div>
+
+      {localStorageQuotaExceeded && (
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[9999] flex flex-col items-center justify-center p-6 text-center">
+          <div className="bg-white dark:bg-slate-950 p-8 rounded-2xl border border-amber-200 dark:border-amber-900 shadow-2xl max-w-md w-full space-y-6">
+            <div className="flex justify-center">
+              <div className="w-16 h-16 rounded-full bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 flex items-center justify-center animate-pulse">
+                <RefreshCw className="w-8 h-8 text-amber-600 dark:text-amber-400 animate-spin" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-wide">
+                SKILL BANK 26-27 IS Updating
+              </h3>
+              <p className="text-slate-600 dark:text-slate-400 font-medium text-sm">
+                PLS Wait for a moment...
+              </p>
+            </div>
+            <div className="p-3 bg-amber-50/50 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/60 rounded-xl text-[11px] text-amber-800 dark:text-amber-300 font-semibold leading-relaxed">
+              The browser storage is optimizing data buffers. Do not close this tab. The app will resume once synchronisation completes.
+            </div>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => {
+                  localStorage.clear();
+                  window.location.reload();
+                }}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg text-xs font-bold transition-all cursor-pointer"
+              >
+                Clear Cache &amp; Reload
+              </button>
+              <button
+                onClick={() => window.location.reload()}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-all cursor-pointer"
+              >
+                Reload Page
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
