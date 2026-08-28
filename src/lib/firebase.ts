@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, getDocFromServer } from 'firebase/firestore';
 import firebaseConfigFile from '../../firebase-applet-config.json';
 
 // Prefer Vite env vars (set locally in .env or in Vercel as VITE_*) and fall back to the checked-in JSON config
@@ -31,7 +31,16 @@ function hasEnvConfig(cfg: typeof envConfig) {
 const firebaseConfig = hasEnvConfig(envConfig) ? envConfig : (firebaseConfigFile as any);
 
 const app = initializeApp(firebaseConfig as any);
-export const db = (firebaseConfig as any).firestoreDatabaseId ? getFirestore(app, (firebaseConfig as any).firestoreDatabaseId) : getFirestore(app);
+const dbConfig = (firebaseConfig as any).firestoreDatabaseId
+  ? { databaseId: (firebaseConfig as any).firestoreDatabaseId }
+  : {};
+
+export const db = initializeFirestore(app, {
+  ...dbConfig,
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager(),
+  }),
+});
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 
