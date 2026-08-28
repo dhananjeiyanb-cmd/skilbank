@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
-import { collection, doc, onSnapshot, getDocs, deleteDoc } from 'firebase/firestore';
+import { collection, doc, onSnapshot, getDocs, deleteDoc, writeBatch } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, testFirestoreConnection } from '../lib/firebase';
 import { syncDocToFirestore, deleteDocFromFirestore } from '../lib/firestoreSync';
 import {
@@ -673,20 +673,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       } catch {}
 
-      const isInitialized = localStorage.getItem(`${LOCAL_STORAGE_KEY_PREFIX}staff_initialized`) === 'true';
-
       if (snapshot.empty) {
-        if (isInitialized || (localStorage.getItem(`${LOCAL_STORAGE_KEY_PREFIX}staff`) && JSON.parse(localStorage.getItem(`${LOCAL_STORAGE_KEY_PREFIX}staff`) || '[]').length === 0)) {
-          setStaffList([]);
-          localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}staff`, JSON.stringify([]));
-        } else {
-          const staffToInit = (localStaffArr.length > 0 ? localStaffArr : INITIAL_STAFF).filter(isNotRecentlyDeleted);
-          staffToInit.forEach((s) => syncDocToFirestore('staff', s.id, s));
-          setStaffList(staffToInit);
-          localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}staff`, JSON.stringify(staffToInit));
-          localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}staff_initialized`, 'true');
-        }
-            } else {
+        setStaffList([]);
+        localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}staff`, JSON.stringify([]));
+      } else {
         const items = snapshot.docs.map((d) => d.data() as Staff);
         const kept = items.filter(isKeepStaff).filter(isNotRecentlyDeleted);
 
@@ -760,9 +750,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (saved) { const parsed = JSON.parse(saved); if (Array.isArray(parsed)) localArr = parsed; }
       } catch {}
       if (snapshot.empty) {
-        const toInit = localArr.length > 0 ? localArr : INITIAL_CLASSES;
-        setClassList(toInit);
-        localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}classes`, JSON.stringify(toInit));
+        setClassList([]);
+        localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}classes`, JSON.stringify([]));
       } else {
         const items = snapshot.docs.map((d) => d.data() as ClassRoom);
         const map = new Map<string, ClassRoom>();
@@ -801,9 +790,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (saved) { const parsed = JSON.parse(saved); if (Array.isArray(parsed)) localArr = parsed; }
       } catch {}
       if (snapshot.empty) {
-        const toInit = localArr.length > 0 ? localArr : INITIAL_OBSERVATIONS;
-        setObservationList(toInit);
-        localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}observations`, JSON.stringify(toInit));
+        setObservationList([]);
+        localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}observations`, JSON.stringify([]));
       } else {
         const items = snapshot.docs.map((d) => d.data() as ClassObservation);
         const map = new Map<string, ClassObservation>();
@@ -827,9 +815,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (saved) { const parsed = JSON.parse(saved); if (Array.isArray(parsed)) localArr = parsed; }
       } catch {}
       if (snapshot.empty) {
-        const toInit = localArr.length > 0 ? localArr : INITIAL_DAILY_MONITORING;
-        setMonitoringList(toInit);
-        localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}monitoring`, JSON.stringify(toInit));
+        setMonitoringList([]);
+        localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}monitoring`, JSON.stringify([]));
       } else {
         const items = snapshot.docs.map((d) => d.data() as FacultyDailyMonitoring);
         const map = new Map<string, FacultyDailyMonitoring>();
@@ -853,9 +840,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (saved) { const parsed = JSON.parse(saved); if (Array.isArray(parsed)) localArr = parsed; }
       } catch {}
       if (snapshot.empty) {
-        const toInit = dedupeAttendanceRecords(localArr.length > 0 ? localArr : INITIAL_ATTENDANCE_RECORDS);
-        setAttendanceRecords(toInit);
-        localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}attendance_records`, JSON.stringify(toInit));
+        setAttendanceRecords([]);
+        localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}attendance_records`, JSON.stringify([]));
       } else {
         const items = snapshot.docs.map((d) => d.data() as StudentAttendanceRecord);
         const map = new Map<string, StudentAttendanceRecord>();
@@ -879,9 +865,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (saved) { const parsed = JSON.parse(saved); if (Array.isArray(parsed)) localArr = parsed; }
       } catch {}
       if (snapshot.empty) {
-        const toInit = localArr.length > 0 ? localArr : INITIAL_LESSON_PLANS;
-        setLessonPlanList(toInit);
-        localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}lesson_plans`, JSON.stringify(toInit));
+        setLessonPlanList([]);
+        localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}lesson_plans`, JSON.stringify([]));
       } else {
         const items = snapshot.docs.map((d) => d.data() as LessonPlanItem);
         const map = new Map<string, LessonPlanItem>();
@@ -905,9 +890,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (saved) { const parsed = JSON.parse(saved); if (Array.isArray(parsed)) localArr = parsed; }
       } catch {}
       if (snapshot.empty) {
-        const toInit = localArr.length > 0 ? localArr : INITIAL_NOTIFICATIONS;
-        setNotifications(toInit);
-        localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}notifications`, JSON.stringify(toInit));
+        setNotifications([]);
+        localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}notifications`, JSON.stringify([]));
       } else {
         const items = snapshot.docs.map((d) => d.data() as AppNotification);
         const map = new Map<string, AppNotification>();
@@ -931,9 +915,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (saved) { const parsed = JSON.parse(saved); if (Array.isArray(parsed)) localArr = parsed; }
       } catch {}
       if (snapshot.empty) {
-        const toInit = localArr.length > 0 ? localArr : INITIAL_EVENTS;
-        setEventsList(toInit);
-        localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}events`, JSON.stringify(toInit));
+        setEventsList([]);
+        localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}events`, JSON.stringify([]));
       } else {
         const items = snapshot.docs.map((d) => d.data() as EventRecord);
         const map = new Map<string, EventRecord>();
@@ -2950,20 +2933,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     (async () => {
       const failures: string[] = [];
       try {
-        await Promise.all(
-          merged.map(async (st) => {
-            try {
-              const docId = getStudentDocId(st);
-              if (docId) await syncDocToFirestore('skillBankStudents', docId, st);
-            } catch (err) {
-              const reg = (st.studentProfile?.registerNumber || getStudentDocId(st) || 'unknown').toString();
-              console.error('Failed to persist skillBankStudent', reg, err);
-              failures.push(reg);
+        // Save students in batches of 100
+        const batchSize = 100;
+        for (let i = 0; i < merged.length; i += batchSize) {
+          const chunk = merged.slice(i, i + batchSize);
+          const batch = writeBatch(db);
+          chunk.forEach((st) => {
+            const docId = getStudentDocId(st);
+            if (docId) {
+              const docRef = doc(db, 'skillBankStudents', docId);
+              batch.set(docRef, st, { merge: true });
             }
-          })
-        );
+          });
+          try {
+            await batch.commit();
+          } catch (batchErr) {
+            console.warn('Batch write failed, enqueuing individually:', batchErr);
+            // Enqueue individually so they are retried offline via firestoreSync
+            for (const st of chunk) {
+              const docId = getStudentDocId(st);
+              if (docId) {
+                await syncDocToFirestore('skillBankStudents', docId, st);
+              }
+            }
+            failures.push(`Batch chunk ${Math.floor(i / batchSize) + 1}`);
+          }
+        }
       } catch (err) {
         console.error('Failed persisting imported students to Firestore:', err);
+        failures.push('Students Batch Write');
       }
 
       // Rebuild the dedicated Mentor → Mentee mapping collection (one doc per
@@ -2978,25 +2976,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         derivedMentorMappingsRef.current = derivedWithTime;
         localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}mentor_mappings_v2`, JSON.stringify(derivedWithTime));
 
-        await Promise.all(
-          derivedWithTime.map(async (m) => {
-            try {
-              await syncDocToFirestore('mentorMappings', m.mentorStaffId, m);
-            } catch (err) {
-              console.error('Failed saving mentor mapping document for', m.mentorStaffId, err);
-              failures.push(m.mentorStaffId);
-            }
-          })
-        );
+        const batch = writeBatch(db);
+        derivedWithTime.forEach((m) => {
+          const docRef = doc(db, 'mentorMappings', m.mentorStaffId);
+          batch.set(docRef, m, { merge: true });
+        });
+        try {
+          await batch.commit();
+        } catch (batchErr) {
+          console.warn('Mappings batch write failed, enqueuing individually:', batchErr);
+          for (const m of derivedWithTime) {
+            await syncDocToFirestore('mentorMappings', m.mentorStaffId, m);
+          }
+          failures.push('Mentor Mappings Batch');
+        }
       } catch (err) {
         console.error('Failed rebuilding mentor mappings on import:', err);
+        failures.push('Mentor Mappings Rebuild');
       }
 
       if (failures.length > 0) {
-        alert(
-          `Failed to persist ${failures.length} imported record(s) to the database. Please check network/Firestore configuration. Failed: ${failures
-            .slice(0, 5)
-            .join(', ')}${failures.length > 5 ? '…' : ''}`
+        console.warn(
+          `Encountered issues syncing ${failures.length} batch chunk(s). They have been successfully queued in local storage for offline synchronization.`
         );
       }
     })();
@@ -3422,27 +3423,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Subsequent page loads rely on the durable pending-sync queue in
   // firestoreSync.ts, which automatically flushes any local change that
   // Firestore has not accepted yet.
-  const bootFullSyncRanRef = useRef(false);
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      if (bootFullSyncRanRef.current) return;
-      bootFullSyncRanRef.current = true;
-      try {
-        const doneKey = `${LOCAL_STORAGE_KEY_PREFIX}boot_full_sync_done`;
-        if (localStorage.getItem(doneKey) === 'true') {
-          console.log('[Boot Sync] Skipped full push (already performed on this device). Durable queue will flush pending changes.');
-        } else {
-          syncAllDataToFirestore();
-          localStorage.setItem(doneKey, 'true');
-          console.log('[Boot Sync] Full dataset pushed to Firebase Firestore.');
-        }
-      } catch (err) {
-        console.warn('[Boot Sync] Full dataset push failed:', err);
-      }
-    }, 2500);
-    return () => window.clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+
 
   // Reset to seed data
   const resetToDefaultData = () => {

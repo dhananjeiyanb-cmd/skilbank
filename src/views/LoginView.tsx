@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 
 export const LoginView: React.FC = () => {
-  const { login, loginWithGoogle, loginAsDemo, dailyReport, updateDailyReport, setActiveTab } = useApp();
+  const { login, loginWithGoogle, loginAsDemo, dailyReport, updateDailyReport, setActiveTab, staffList, resetToDefaultData } = useApp();
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -247,6 +247,25 @@ export const LoginView: React.FC = () => {
                   <span>ENTER EXAM PORTAL</span>
                 </button>
               </form>
+            )}
+
+            {staffList.length === 0 && (
+              <div className="mt-5 p-4 bg-blue-950/40 border border-blue-900/60 rounded-2xl text-center space-y-2.5 animate-in fade-in">
+                <p className="text-xs text-blue-300 font-semibold leading-relaxed">
+                  No staff accounts found in the database. Initialize with default demo accounts to log in.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    resetToDefaultData();
+                    alert('Database successfully initialized with default demo accounts (HOD, Staff, etc.). You can now log in!');
+                  }}
+                  className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-[11px] font-bold transition-all cursor-pointer shadow-md inline-flex items-center gap-1.5"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
+                  <span>Initialize Default Accounts</span>
+                </button>
+              </div>
             )}
           </div>
         </div>
